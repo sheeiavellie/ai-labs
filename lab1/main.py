@@ -1,7 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-
 CHR_LEN = 50
 BIT_LEN = 20
 
@@ -41,9 +40,6 @@ rng = np.random.default_rng()
 first_sample = rng.uniform(LOW, HIGH, CHR_LEN)
 
 print_sample_table(first_sample)
-
-
-
 
 step = 0.01
 x = np.arange(LOW, HIGH, step)

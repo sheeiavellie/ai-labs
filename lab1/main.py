@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-PLOT = False
+PLOT = True
 
 CHR_LEN = 50
 BIT_LEN = 20
@@ -49,43 +49,101 @@ def select_pairs(sample):
     return np.array(pairs)
 
 def crossover(pair_in_binary):
-    s = np.random.rand()
-    if s < P_C:
-        k = np.random.randint(0, BIT_LEN)
+    k = np.random.randint(0, BIT_LEN)
 
-        x1i = pair_in_binary[0][0:k]
-        x1j = pair_in_binary[0][k+1:]
-        x2i = pair_in_binary[1][0:k]
-        x2j = pair_in_binary[1][k+1:]
+    x1i = pair_in_binary[0][0:k]
+    x1j = pair_in_binary[0][k:]
+    x2i = pair_in_binary[1][0:k]
+    x2j = pair_in_binary[1][k:]
 
-        new_first = mutate(x1i + x2j)
-        new_second = mutate(x2i + x1j)
+    new_first = mutate(x1i + x2j)
+    new_second = mutate(x2i + x1j)
 
-        return [new_first, new_second]
-    else:
-        return np.array(pair_in_binary)
+    return np.array([new_first, new_second])
+
 
 def mutate(child_in_binary):
     m = np.random.rand()
+    str_list = list(child_in_binary)
     if m < P_M:
         n = np.random.randint(0, BIT_LEN)
-        if child_in_binary[n] == 1:
-            child_in_binary[n] = 0
+        if str_list[n] == "1":
+            str_list[n] = "0"
         else:
-            child_in_binary[n] = 1 
-    return child_in_binary
+            str_list[n] = "1" 
+    return "".join(str_list)
 
-def genetic_algorithm(sample):
+def reduce_population(sample):
+    new_sample = np.array([])
+
+    for i in range(CHR_LEN):
+        Fs = 0
+        for num in sample:
+            Fs += F(num)
+        
+        sectors = []
+        Fo_prev = 0
+        for num in sample:
+            Fo = F(num) / Fs
+            sector = Fo + Fo_prev
+            Fo_prev = sector
+            sectors.append(sector)
+
+        c = np.random.rand()
+        for i, sector in enumerate(sectors):
+            if c < sector:
+                new_sample = np.append(new_sample, sample[i])
+                sample = np.delete(sample, i)
+                break
+
+    return new_sample
+    
+def new_generation(sample):
     pairs = select_pairs(sample=sample)
 
     for pair in pairs:
         pb1 = float_to_binary(pair[0], BIT_LEN, LOW, HIGH)
         pb2 = float_to_binary(pair[1], BIT_LEN, LOW, HIGH)
 
-        children = crossover([pb1, pb2])
-        if children != pair:
-            sample.append(binary_to_float(children[0], BIT_LEN, LOW, HIGH))
-            sample.append(binary_to_float(children[1], BIT_LEN, LOW, HIGH))
+        s = np.random.rand()
+        if s < P_C:
+            children = crossover([pb1, pb2])
+            sample = np.append(sample, binary_to_float(children[0], BIT_LEN, LOW, HIGH))
+            sample = np.append(sample, binary_to_float(children[1], BIT_LEN, LOW, HIGH))
+
+    new_generation = reduce_population(sample=sample)
+
+    return new_generation
+
+def genetic_algorithm(sample):
+    generation_count = 0
+    generation = np.array([])
+
+    Fs = 0
+    Fs_prev = 0
+    dF = 100
+
+    for num in sample:
+        print(F(num))
+        Fs += F(num)
+    print("----------\nGeneration #%d\nFs current: %.4f\nFs previous: %.4f\ndF: %.4f\n" % (generation_count, Fs, Fs_prev, dF))
+
+    while dF > 0.1:
+        generation_count += 1
+        generation = new_generation(sample=sample)
+
+        Fs = 0
+        for num in generation:
+            Fs += F(num)
+
+        dF = np.abs((Fs - Fs_prev)/ Fs)
+                    
+        print("----------\nGeneration #%d\nFs current: %.4f\nFs previous: %.4f\ndF: %.4f\n" % (generation_count, Fs, Fs_prev, dF))
+
+        Fs_prev = Fs
+    m = np.max(generation)
+    print(m)
+    
 
 
 
@@ -102,10 +160,10 @@ def plot_fitness_function(figure, sample):
     step = 0.01
     x = np.arange(LOW, HIGH, step)
 
+    plt.figure(figure)
     plt.title("Функция приспособленности")
     plt.xlabel("x")
     plt.ylabel("F(x)")
-    plt.figure(figure)
     if sample is None:
         plt.plot(x, F(x))
     else:
@@ -115,10 +173,10 @@ def plot_target_function(figure):
     step = 0.01
     x = np.arange(LOW, HIGH, step)
 
+    plt.figure(figure)
     plt.title("Целевая функция")
     plt.xlabel("x")
     plt.ylabel("f(x)")
-    plt.figure(figure)
     plt.plot(x, f(x))
 
 
@@ -129,12 +187,16 @@ second_sample = rng.uniform(LOW, HIGH, CHR_LEN)
 third_sample = rng.uniform(LOW, HIGH, CHR_LEN)
 
 print_sample_table(first_sample)
+genetic_algorithm(sample=first_sample)
 
 if PLOT:
+    
     plot_target_function(0)
-    plot_fitness_function(1, sample=None)
-    plot_fitness_function(2, sample=first_sample)
-    plot_fitness_function(3, sample=second_sample)
-    plot_fitness_function(4, sample=third_sample)
+
+    #plot_fitness_function(1, sample=None)
+
+    plot_fitness_function(1, sample=first_sample)
+    #plot_fitness_function(3, sample=second_sample)
+    #plot_fitness_function(4, sample=third_sample)
 
     plt.show()

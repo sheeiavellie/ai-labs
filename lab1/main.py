@@ -1,7 +1,12 @@
+import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 
-PLOT = True
+parser = argparse.ArgumentParser()
+
+parser.add_argument("-p", "--plot", help="enable or disable plots", action=argparse.BooleanOptionalAction)
+
+args = parser.parse_args()
 
 CHR_LEN = 50
 BIT_LEN = 20
@@ -17,9 +22,6 @@ def f(x):
 
 def F(x):
     return np.cos(1.2 * x - 2) - np.cos(1.7 * x - 1) * np.sin(8.4 * x)
-
-def compare_floats(a, b, tolerance=1e-9):
-    return abs(a - b) < tolerance
 
 def float_to_binary(number, length, min_val, max_val):
     number = max(min(number, max_val), min_val)
@@ -124,10 +126,10 @@ def genetic_algorithm(sample):
     dF = 100
 
     for num in sample:
-        print(F(num))
         Fs += F(num)
     print("----------\nGeneration #%d\nFs current: %.4f\nFs previous: %.4f\ndF: %.4f\n" % (generation_count, Fs, Fs_prev, dF))
 
+    # while generation_count != 100:
     while dF > 0.1:
         generation_count += 1
         generation = new_generation(sample=sample)
@@ -136,16 +138,16 @@ def genetic_algorithm(sample):
         for num in generation:
             Fs += F(num)
 
-        dF = np.abs((Fs - Fs_prev)/ Fs)
+        dF = (Fs - Fs_prev)/ Fs
                     
         print("----------\nGeneration #%d\nFs current: %.4f\nFs previous: %.4f\ndF: %.4f\n" % (generation_count, Fs, Fs_prev, dF))
 
         Fs_prev = Fs
-    m = np.max(generation)
+
+    m = np.max([F(num) for num in generation])
     print(m)
-    
 
-
+    return generation
 
 def print_sample_table(sample):
     print("+ {sign:.2s} + {sign:.7s} + {sign:.20s} + {sign:.7s} + {sign:.7s} +".format(sign=("-" * 20)))
@@ -187,16 +189,27 @@ second_sample = rng.uniform(LOW, HIGH, CHR_LEN)
 third_sample = rng.uniform(LOW, HIGH, CHR_LEN)
 
 print_sample_table(first_sample)
-genetic_algorithm(sample=first_sample)
+final_generation1 = genetic_algorithm(sample=first_sample)
 
-if PLOT:
+print_sample_table(second_sample)
+final_generation2 = genetic_algorithm(sample=second_sample)
+
+print_sample_table(third_sample)
+final_generation3 = genetic_algorithm(sample=third_sample)
+
+if args.plot:
     
-    plot_target_function(0)
+    plot_target_function("Target function")
 
-    #plot_fitness_function(1, sample=None)
+    # plot_fitness_function(1, sample=None)
 
-    plot_fitness_function(1, sample=first_sample)
-    #plot_fitness_function(3, sample=second_sample)
-    #plot_fitness_function(4, sample=third_sample)
+    plot_fitness_function("1st sample before", sample=first_sample)
+    plot_fitness_function("1st sample after", sample=final_generation1)
+
+    plot_fitness_function("2d sample before", sample=second_sample)
+    plot_fitness_function("2d sample after", sample=final_generation2)
+
+    plot_fitness_function("3d sample before", sample=third_sample)
+    plot_fitness_function("3d sample after", sample=final_generation3)
 
     plt.show()

@@ -18,7 +18,55 @@ P_C = 0.9
 P_M = 0.2
 
 def ACF(k, a):
-    return np.sum([a[i]+a[i-k] for i in range(0, BIT_LEN+k-1) ])
+    psls = []
+
+    for k in range(-CHR_LEN, CHR_LEN):
+        if k < -BIT_LEN-1 or k > BIT_LEN-1:
+            psls.append(0.0)
+            continue
+        if k <= 0:
+            cur = np.sum([a[i]*a[i-k] for i in range(0, BIT_LEN+k)])
+        else:
+            cur = np.sum([a[i]*a[i-k] for i in range(BIT_LEN-1, -1+k, -1)])
+
+        psls.append(cur)
+    
+    return psls
+
+def FFn(a):
+    return BIT_LEN / PSL(a)
+
+def PSL(a):
+    cur_max = -9999
+    psls = []
+
+    for k in range(-CHR_LEN, CHR_LEN):
+        if k < -BIT_LEN-1 or k > BIT_LEN-1:
+            psls.append(0.0)
+            continue
+        if k == 0:
+            continue
+        if k < 0:
+            cur = np.sum([a[i]*a[i-k] for i in range(0, BIT_LEN+k)])
+        else:
+            cur = np.sum([a[i]*a[i-k] for i in range(BIT_LEN-1, -1+k, -1)])
+
+        psls.append(cur)
+        if cur >= cur_max:
+            cur_max = cur
+
+    return cur_max
+
+def generate_sample(n, p):
+    sample = []
+    rng = np.random.default_rng()
+
+    for i in range(p):
+        chromosomes = rng.integers(2, size=n)
+        chromosomes = list(map(lambda chr: -1 if chr==0 else 1, chromosomes))
+        sample.append(chromosomes)
+    
+    return sample
 
 def select_pairs(sample):
     pairs = []
@@ -29,46 +77,45 @@ def select_pairs(sample):
         s = np.setdiff1d(sample, selected)
     return np.array(pairs)
 
-def crossover(pair_in_binary):
+def crossover(pair):
     k = np.random.randint(0, BIT_LEN)
 
-    x1i = pair_in_binary[0][0:k]
-    x1j = pair_in_binary[0][k:]
-    x2i = pair_in_binary[1][0:k]
-    x2j = pair_in_binary[1][k:]
+    x1i = pair[0][0:k]
+    x1j = pair[0][k:]
+    x2i = pair[1][0:k]
+    x2j = pair[1][k:]
 
-    new_first = mutate(x1i + x2j)
-    new_second = mutate(x2i + x1j)
+    new_first = mutate(np.concatenate((x1i, x2j)))
+    new_second = mutate(np.concatenate((x2i, x1j)))
 
     return np.array([new_first, new_second])
 
-
-def mutate(child_in_binary):
+def mutate(child):
     m = np.random.rand()
-    str_list = list(child_in_binary)
     if m < P_M:
         n = np.random.randint(0, BIT_LEN)
-        if str_list[n] == "1":
-            str_list[n] = "0"
+        if child[n] == 1:
+            child[n] = -1
         else:
-            str_list[n] = "1" 
-    return "".join(str_list)
+            child[n] = 1 
+    return child
 
 def reduce_population(sample):
     new_sample = np.array([])
 
     for i in range(CHR_LEN):
         Fs = 0
-        for num in sample:
-            Fs += F(num)
+        for a in sample:
+            Fs += FFn(a)
         
         sectors = []
         Fo_prev = 0
-        for num in sample:
-            Fo = F(num) / Fs
+        for a in sample:
+            Fo = FFn(a) / Fs
             sector = Fo + Fo_prev
             Fo_prev = sector
             sectors.append(sector)
+        sectors.append(1)
 
         c = np.random.rand()
         for i, sector in enumerate(sectors):
@@ -83,14 +130,14 @@ def new_generation(sample):
     pairs = select_pairs(sample=sample)
 
     for pair in pairs:
-        pb1 = float_to_binary(pair[0], BIT_LEN, LOW, HIGH)
-        pb2 = float_to_binary(pair[1], BIT_LEN, LOW, HIGH)
+        pb1 = pair[0]
+        pb2 = pair[1]
 
         s = np.random.rand()
         if s < P_C:
             children = crossover([pb1, pb2])
-            sample = np.append(sample, binary_to_float(children[0], BIT_LEN, LOW, HIGH))
-            sample = np.append(sample, binary_to_float(children[1], BIT_LEN, LOW, HIGH))
+            sample = np.append(sample, children[0])
+            sample = np.append(sample, children[1])
 
     new_generation = reduce_population(sample=sample)
 
@@ -105,7 +152,7 @@ def genetic_algorithm(sample):
     dF = 100
 
     for num in sample:
-        Fs += F(num)
+        Fs += FFn(num)
     print("----------\nGeneration #%d\nFs current: %.4f\nFs previous: %.4f\ndF: %.4f\n" % (generation_count, Fs, Fs_prev, dF))
 
     # while generation_count != 100:
@@ -115,7 +162,7 @@ def genetic_algorithm(sample):
 
         Fs = 0
         for num in generation:
-            Fs += F(num)
+            Fs += FFn(num)
 
         dF = (Fs - Fs_prev)/ Fs
                     
@@ -123,30 +170,24 @@ def genetic_algorithm(sample):
 
         Fs_prev = Fs
 
-    m = np.max([F(num) for num in generation])
+    m = np.max([FFn(num) for num in generation])
     print(m)
 
     return generation
 
 def print_sample_table(sample):
-    print("+ {sign:.2s} + {sign:.7s} + {sign:.20s} + {sign:.7s} + {sign:.7s} +".format(sign=("-" * 20)))
-    print("| %2s | %7s | %20s | %7s | %7s |" % ("№", "X", "Chromosome", "f(x)", "F(x)"))
-    print("+ {sign:.2s} + {sign:.7s} + {sign:.20s} + {sign:.7s} + {sign:.7s} +".format(sign=("-" * 20)))
-    for i, num in enumerate(sample):
-        print("| %2d | %+1.4f | %20s | %+1.4f | %+1.4f |" % 
-              (i, num, float_to_binary(num, 20, LOW, HIGH), f(num), F(num)))
-    print("+ {sign:.2s} + {sign:.7s} + {sign:.20s} + {sign:.7s} + {sign:.7s} +".format(sign=("-" * 20)))
+    print("+ {sign:.2s} + {sign:132s} + {sign:.7s} +".format(sign=("-" * 132)))
+    print("| {:^2s} | {:^132s} | {:^7s} |".format("№", "Chromosome", "PSL"))
+    print("+ {sign:.2s} + {sign:.132s} + {sign:.7s} +".format(sign=("-" * 132)))
+    
+    i = 0
+    for a in sample:
+        print("| {:^2d} | {:<132s} | {:^7d} |".format(i, ', '.join(str(x) for x in a), PSL(a)))
+        i += 1
+    print("+ {sign:.2s} + {sign:.132s} + {sign:.7s} +".format(sign=("-" * 132)))
 
-rng = np.random.default_rng()
-
+first_sample = generate_sample(BIT_LEN, CHR_LEN)
 print_sample_table(first_sample)
-final_generation1 = genetic_algorithm(sample=first_sample)
-
-print_sample_table(second_sample)
-final_generation2 = genetic_algorithm(sample=second_sample)
-
-print_sample_table(third_sample)
-final_generation3 = genetic_algorithm(sample=third_sample)
 
 if args.plot:
     

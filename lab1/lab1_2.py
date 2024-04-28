@@ -1,6 +1,7 @@
 import argparse
-import numpy as np
 import matplotlib.pyplot as plt
+import random
+import copy
 
 parser = argparse.ArgumentParser()
 
@@ -17,180 +18,286 @@ PSL = 3
 P_C = 0.9
 P_M = 0.2
 
-def ACF(k, a):
+ITERATIONS = 35
+
+def ACF(chromosome):
     psls = []
-
-    for k in range(-CHR_LEN, CHR_LEN):
-        if k < -BIT_LEN-1 or k > BIT_LEN-1:
-            psls.append(0.0)
-            continue
-        if k <= 0:
-            cur = np.sum([a[i]*a[i-k] for i in range(0, BIT_LEN+k)])
-        else:
-            cur = np.sum([a[i]*a[i-k] for i in range(BIT_LEN-1, -1+k, -1)])
-
-        psls.append(cur)
+    for k in range(-(BIT_LEN-1), BIT_LEN):
+        count = 0
+        i1 = k
+        i2 = 0
+        while i1 < BIT_LEN:
+            if i2 >= BIT_LEN:
+                break
+            while i1 < 0:
+                i2 += 1
+                i1 += 1
+            if chromosome[i2] == chromosome[i1]:
+                count += 1
+            else:
+                count -= 1
+            i2 += 1
+            i1 += 1
+        psls.append(count)
     
     return psls
 
-def FFn(a):
-    return BIT_LEN / PSL(a)
 
-def PSL(a):
-    cur_max = -9999
-    psls = []
-
-    for k in range(-CHR_LEN, CHR_LEN):
-        if k < -BIT_LEN-1 or k > BIT_LEN-1:
-            psls.append(0.0)
-            continue
-        if k == 0:
-            continue
-        if k < 0:
-            cur = np.sum([a[i]*a[i-k] for i in range(0, BIT_LEN+k)])
-        else:
-            cur = np.sum([a[i]*a[i-k] for i in range(BIT_LEN-1, -1+k, -1)])
-
-        psls.append(cur)
-        if cur >= cur_max:
-            cur_max = cur
-
-    return cur_max
-
-def generate_sample(n, p):
-    sample = []
-    rng = np.random.default_rng()
-
-    for i in range(p):
-        chromosomes = rng.integers(2, size=n)
-        chromosomes = list(map(lambda chr: -1 if chr==0 else 1, chromosomes))
-        sample.append(chromosomes)
-    
-    return sample
-
-def select_pairs(sample):
-    pairs = []
-    s = sample
-    for _ in range(s.size):
-        selected = np.random.choice(s, size=2, replace=False)
-        pairs.append(selected)
-        s = np.setdiff1d(sample, selected)
-    return np.array(pairs)
-
-def crossover(pair):
-    k = np.random.randint(0, BIT_LEN)
-
-    x1i = pair[0][0:k]
-    x1j = pair[0][k:]
-    x2i = pair[1][0:k]
-    x2j = pair[1][k:]
-
-    new_first = mutate(np.concatenate((x1i, x2j)))
-    new_second = mutate(np.concatenate((x2i, x1j)))
-
-    return np.array([new_first, new_second])
-
-def mutate(child):
-    m = np.random.rand()
-    if m < P_M:
-        n = np.random.randint(0, BIT_LEN)
-        if child[n] == 1:
-            child[n] = -1
-        else:
-            child[n] = 1 
-    return child
-
-def reduce_population(sample):
-    new_sample = np.array([])
-
-    for i in range(CHR_LEN):
-        Fs = 0
-        for a in sample:
-            Fs += FFn(a)
+def ACF_c(chromosomes, chromosome):
+    for chrom in chromosomes:
+        if chrom == chromosome:
+            return False
         
-        sectors = []
-        Fo_prev = 0
-        for a in sample:
-            Fo = FFn(a) / Fs
-            sector = Fo + Fo_prev
-            Fo_prev = sector
-            sectors.append(sector)
-        sectors.append(1)
+    chromosome_list = list(chromosome)
+    for i in range(0, BIT_LEN):
+        chromosome_list[i] = str(int(chromosome_list[i]) ^ 1)
 
-        c = np.random.rand()
-        for i, sector in enumerate(sectors):
-            if c < sector:
-                new_sample = np.append(new_sample, sample[i])
-                sample = np.delete(sample, i)
-                break
+    chr_comparison = ''.join(chromosome_list)
 
-    return new_sample
-    
-def new_generation(sample):
-    pairs = select_pairs(sample=sample)
+    for chrom in chromosomes:
+        if chr_comparison == chrom:
+            return False
+        
+    return True
 
-    for pair in pairs:
-        pb1 = pair[0]
-        pb2 = pair[1]
 
-        s = np.random.rand()
-        if s < P_C:
-            children = crossover([pb1, pb2])
-            sample = np.append(sample, children[0])
-            sample = np.append(sample, children[1])
+class CodeSequence:
+    num = 1
+    chromosome = ""
+    psl_max = -9999
 
-    new_generation = reduce_population(sample=sample)
+    def __init__(self, number):
+        self.num = number
 
-    return new_generation
+        bits = bin(number)
+        bits = bits[2:]
 
-def genetic_algorithm(sample):
+        while len(bits) < BIT_LEN:
+            bits = '0' + bits
+
+        self.chromosome = bits
+
+    def chr_from_string(self, chromosome):
+        self.chromosome = chromosome
+
+        n = 0
+        length = BIT_LEN-1
+
+        for ch in chromosome:
+            n += int(ch)*(2**length)
+            length = length-1
+
+        self.num = n
+
+    def FFn(self):
+        cur_max = -9999
+        
+        if self.psl_max != cur_max:
+            return BIT_LEN/self.psl_max
+        
+        for i in ACF(self.chromosome):
+            if cur_max < i and i != BIT_LEN:
+                cur_max = i
+        self.psl_max = cur_max
+
+        return BIT_LEN/cur_max
+
+    def PSL(self):
+        cur_max = -9999
+
+        if self.psl_max != cur_max:
+            return self.psl_max
+        
+        for i in ACF(self.chromosome):
+            if cur_max < i and i != BIT_LEN:
+                cur_max = i
+        self.psl_max = cur_max
+
+        return cur_max
+
+    def get_chr(self):
+        chromosome_list = list(self.chromosome)
+
+        for i in range(0, BIT_LEN):
+            if (chromosome_list[i] == '1'):
+                chromosome_list[i] = '+1'
+            else:
+                chromosome_list[i] = '-1'
+                
+        return ', '.join(chromosome_list)
+
+
+class Population:
+    sample = []
+    N = 1
+
+    def __init__(self, n):
+        self.N = n
+
+        for _ in range(1, self.N+1):
+            self.sample.append(CodeSequence(random.randint(0, 2 ** BIT_LEN)))
+
+    def mutate(self, chromosome: str):
+        m = random.randint(1, BIT_LEN)
+
+        chromosome_list = list(chromosome)
+        chromosome_list[m - 1] = str(int(chromosome_list[m - 1]) ^ 1)
+        chromosome = ''.join(chromosome_list)
+
+        return chromosome
+
+    def crossover(self):
+        pairs = copy.deepcopy(self.sample)
+
+        while len(pairs) > 1:
+            par1 = pairs.pop(random.randint(0, len(pairs)-1))
+            par2 = pairs.pop(random.randint(0, len(pairs)-1))
+
+            s = random.random()
+            if s > P_C:
+                continue
+
+            k_crossover = random.randint(0, BIT_LEN)
+
+            child1 = par1.chromosome[0:k_crossover] + par2.chromosome[k_crossover:]
+            child2 = par2.chromosome[0:k_crossover] + par1.chromosome[k_crossover:]
+
+            m = random.random()
+            if m < P_M:
+                child1 = self.mutate(child1)
+
+            m = random.random()
+            if m < P_M:
+                child2 = self.mutate(child2)
+
+            new_first = CodeSequence(1)
+            new_first.chr_from_string(child1)
+            new_second = CodeSequence(1)
+            new_second.chr_from_string(child2)
+
+            self.sample.append(new_first)
+            self.sample.append(new_second)
+
+    def reduction(self):
+        pairs = copy.deepcopy(self.sample)
+        count = 0
+        new_sample = []
+
+        while count < self.N:
+            Fs = self.Fs()
+            sectors = []
+
+            for pair in pairs:
+                sectors.append(pair.FFn()/Fs)
+
+            c = random.random()
+            i = 0
+            if c < sectors[0]:
+                new_sample.append(pairs.pop(0))
+            else:
+                while c > 0:
+                    c -= sectors[i]
+                    i += 1
+                new_sample.append(pairs.pop(i))
+            count = count+1
+
+        self.sample = new_sample
+
+    def Fs(self):
+        count = 0
+
+        for i in range(0, self.N):
+            count += self.sample[i].FFn()
+
+        return count/self.N
+
+    def print_sample_table(self):
+        print("+ {sign:.2s} + {sign:130s} + {sign:.7s} +".format(sign=("-" * 130)))
+        print("| {:^2s} | {:^130s} | {:^7s} |".format("№", "Chromosome", "PSL"))
+        print("+ {sign:.2s} + {sign:.130s} + {sign:.7s} +".format(sign=("-" * 130)))
+        
+        i = 0
+        for a in self.sample:
+            print("| {:^2d} | {:<130s} | {:^7d} |".format(i, self.sample[i].get_chr(), self.sample[i].PSL()))
+            i += 1
+        print("+ {sign:.2s} + {sign:.130s} + {sign:.7s} +".format(sign=("-" * 130)))
+
+class GeneticAlgorithm:
     generation_count = 0
-    generation = np.array([])
+    chromosomes = []
+    css = []
 
-    Fs = 0
-    Fs_prev = 0
-    dF = 100
+    def __init__(self):
+        self.generation_count = 0
+        self.chromosomes = []
+        self.css = []
 
-    for num in sample:
-        Fs += FFn(num)
-    print("----------\nGeneration #%d\nFs current: %.4f\nFs previous: %.4f\ndF: %.4f\n" % (generation_count, Fs, Fs_prev, dF))
+    def genetic_algorithm(self, population):
+        cou = 0
 
-    # while generation_count != 100:
-    while dF > 0.1:
-        generation_count += 1
-        generation = new_generation(sample=sample)
+        while cou != 3:
+            self.generation_count += 1
 
-        Fs = 0
-        for num in generation:
-            Fs += FFn(num)
+            population.crossover()
+            population.reduction()
 
-        dF = (Fs - Fs_prev)/ Fs
-                    
-        print("----------\nGeneration #%d\nFs current: %.4f\nFs previous: %.4f\ndF: %.4f\n" % (generation_count, Fs, Fs_prev, dF))
+            Fss.append(population.Fs())
 
-        Fs_prev = Fs
+            if self.generation_count == 3 and cou == 0:
+                print("Population 3")
+                population.print_sample_table()
 
-    m = np.max([FFn(num) for num in generation])
-    print(m)
+            generation = max(population.sample, key=lambda x: x.FFn())
 
-    return generation
+            if generation.PSL() <= PSL:
+                if ACF_c(self.chromosomes, generation.chromosome):
+                    cou += 1
+                    self.chromosomes.append(generation.chromosome)
+                    self.css.append(generation.get_chr())
 
-def print_sample_table(sample):
-    print("+ {sign:.2s} + {sign:132s} + {sign:.7s} +".format(sign=("-" * 132)))
-    print("| {:^2s} | {:^132s} | {:^7s} |".format("№", "Chromosome", "PSL"))
-    print("+ {sign:.2s} + {sign:.132s} + {sign:.7s} +".format(sign=("-" * 132)))
-    
-    i = 0
-    for a in sample:
-        print("| {:^2d} | {:<132s} | {:^7d} |".format(i, ', '.join(str(x) for x in a), PSL(a)))
-        i += 1
-    print("+ {sign:.2s} + {sign:.132s} + {sign:.7s} +".format(sign=("-" * 132)))
+                    if cou == 1:
+                        print("Population ", self.generation_count)
+                        population.print_sample_table()
 
-first_sample = generate_sample(BIT_LEN, CHR_LEN)
-print_sample_table(first_sample)
+                    if cou != 3:
+                        Fss.clear()
+
+                self.generation_count = 0
+                population = Population(CHR_LEN)
+
+Fss = []
+
+initial_population = Population(CHR_LEN)
+
+Fss.append(initial_population.Fs())
+
+print("Population 0")
+initial_population.print_sample_table()
+
+algorithm = GeneticAlgorithm()
+algorithm.genetic_algorithm(initial_population)
+
+for cs in algorithm.css:
+    print('Code Sequence =', cs)
 
 if args.plot:
-    
-    
+    figure0, axis0 = plt.subplots()
+    axis0.plot(Fss)
+    axis0.set_title("Среднее значение функции приспособленности через поколения")
+
+    figure1, axis1 = plt.subplots()
+    axis1.plot(list(range(-(BIT_LEN-1), BIT_LEN)), ACF(algorithm.chromosomes[0]))
+    axis1.set_title("АКФ найдённой Code Sequence 1")
+    axis1.grid(True)
+
+    figure2, axis2 = plt.subplots()
+    axis2.plot(list(range(-(BIT_LEN-1), BIT_LEN)), ACF(algorithm.chromosomes[1]))
+    axis2.set_title("АКФ найдённой Code Sequence 2")
+    axis2.grid(True)
+
+    figure3, axis3 = plt.subplots()
+    axis3.plot(list(range(-(BIT_LEN-1), BIT_LEN)), ACF(algorithm.chromosomes[2]))
+    axis3.set_title("АКФ найдённой Code Sequence 3")
+    axis3.grid(True)
 
     plt.show()

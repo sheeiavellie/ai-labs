@@ -120,6 +120,7 @@ def new_generation(sample):
 def genetic_algorithm(sample):
     generation_count = 0
     generation = np.array([])
+    generation_previous = sample
 
     Fs = 0
     Fs_prev = 0
@@ -132,7 +133,7 @@ def genetic_algorithm(sample):
     # while generation_count != 100:
     while dF > 0.1:
         generation_count += 1
-        generation = new_generation(sample=sample)
+        generation = new_generation(sample=generation_previous)
 
         Fs = 0
         for num in generation:
@@ -143,6 +144,7 @@ def genetic_algorithm(sample):
         print("----------\nGeneration #%d\nFs current: %.4f\nFs previous: %.4f\ndF: %.4f\n" % (generation_count, Fs, Fs_prev, dF))
 
         Fs_prev = Fs
+        generation_previous = generation
 
     m = np.max([F(num) for num in generation])
     print(m)

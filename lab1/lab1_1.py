@@ -21,7 +21,7 @@ def f(x):
     return np.cos(1.2 * x - 2) - np.cos(1.7 * x - 1) * np.sin(8.4 * x)
 
 def F(x):
-    return np.cos(1.2 * x - 2) - np.cos(1.7 * x - 1) * np.sin(8.4 * x)
+    return np.cos(1.2 * x - 2) - np.cos(1.7 * x - 1) * np.sin(8.4 * x) + 2.1337
 
 def float_to_binary(number, length, min_val, max_val):
     number = max(min(number, max_val), min_val)

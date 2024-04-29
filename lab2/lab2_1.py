@@ -87,6 +87,7 @@ def test_network(test_sample_file):
     print("Correct values: ", correct)
     print("Incorrect values: ", len(test_case) - correct)
     print("Accuracy percentage: ", correct / len(test_case))
+    print("")
 
     return correct / len(test_case)
 

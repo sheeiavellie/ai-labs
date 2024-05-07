@@ -3,10 +3,12 @@ from keras import layers
 import numpy as np
 import random
 import sys
-import io
+import matplotlib.pyplot
+import copy
+
 
 def sample(preds, temperature=1.0):
-    preds = np.asarray(preds).astype('float64')
+    preds = np.asfarray(preds).astype('float64')
     preds = np.log(preds) / temperature
     exp_preds = np.exp(preds)
     preds = exp_preds / np.sum(exp_preds)
@@ -22,7 +24,7 @@ def reweight_distribution(original_distribution, temperature=0.5):
 
 path = "FinnegansWake.txt"
 text = open(path).read().lower()
-print('Corpus length:', len(text))
+print('\nCorpus length:', len(text))
 
 maxlen = 60
 step = 3
@@ -39,9 +41,9 @@ chars = sorted(list(set(text)))
 print('Unique characters:', len(chars))
 char_indices = dict((char, chars.index(char)) for char in chars)
 
-print('Vectorization...')
-x = np.zeros((len(sentences), maxlen, len(chars)), dtype=np.bool)
-y = np.zeros((len(sentences), len(chars)), dtype=np.bool)
+print('\nVectorization...')
+x = np.zeros((len(sentences), maxlen, len(chars)), dtype=np.bool_)
+y = np.zeros((len(sentences), len(chars)), dtype=np.bool_)
 
 for i, sentence in enumerate(sentences):
     for t, char in enumerate(sentence):
@@ -52,12 +54,17 @@ model = keras.models.Sequential()
 model.add(layers.LSTM(128, input_shape=(maxlen, len(chars))))
 model.add(layers.Dense(len(chars), activation='softmax'))
 
-optimizer = keras.optimizers.RMSprop(lr=0.01)
+optimizer = keras.optimizers.RMSprop(learning_rate=0.01)
 model.compile(loss='categorical_crossentropy', optimizer=optimizer)
 
+history = []
+
 for epoch in range(1, 60):
-    print('epoch', epoch)
-    model.fit(x, y, batch_size=128, epochs=1)
+    print('\nEpoch', epoch)
+
+    result = model.fit(x, y, batch_size=128, epochs=1)
+
+    history.append(copy.deepcopy(result.history['loss']))
 
     start_index = random.randint(0, len(text) - maxlen - 1)
     generated_text = text[start_index: start_index + maxlen]
@@ -81,3 +88,8 @@ for epoch in range(1, 60):
             generated_text = generated_text[1:]
 
             sys.stdout.write(next_char)
+
+matplotlib.pyplot.plot(history)
+matplotlib.pyplot.title("Loss on epoch")
+matplotlib.pyplot.xlabel("epoch")
+matplotlib.pyplot.show()
